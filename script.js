@@ -3,6 +3,108 @@
 // Initialize Lucide Icons
 lucide.createIcons();
 
+// --- Cloud Sync Abstraction ---
+window.appInvoices = [];
+window.firebaseDb = null;
+window.useCloud = false;
+
+async function initializeCloudSync() {
+  const config = {
+    apiKey: "AIzaSyD7k4yFm77Kbsw5SJbZVNS4Hh5LIL71J6k",
+    authDomain: "turnover-3fabc.firebaseapp.com",
+    projectId: "turnover-3fabc",
+    storageBucket: "turnover-3fabc.firebasestorage.app",
+    messagingSenderId: "188573328621",
+    appId: "1:188573328621:web:2e42d92daf5447c3bf58e4",
+    measurementId: "G-GCKBW1ZMJY"
+  };
+  
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    window.firebaseDb = firebase.firestore();
+    window.useCloud = true;
+    
+    const snapshot = await window.firebaseDb.collection('invoices').get();
+    
+    if (snapshot.empty) {
+      // Auto-migration on first run: upload local data to cloud
+      const localInvoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
+      if (localInvoices.length > 0) {
+        const batch = window.firebaseDb.batch();
+        localInvoices.forEach(inv => {
+          batch.set(window.firebaseDb.collection('invoices').doc(inv.id.toString()), inv);
+        });
+        await batch.commit();
+        window.appInvoices = localInvoices;
+        console.log("Migrated local data to Firebase successfully.");
+      } else {
+        window.appInvoices = [];
+      }
+    } else {
+      window.appInvoices = snapshot.docs.map(doc => doc.data());
+    }
+  } catch (err) {
+    console.error("Firebase init failed:", err);
+    window.appInvoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
+  }
+  
+  // Override localStorage methods for seamless integration
+  const originalGetItem = localStorage.getItem.bind(localStorage);
+  const originalSetItem = localStorage.setItem.bind(localStorage);
+  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+  
+  localStorage.getItem = function(key) {
+    if (key === 'meera_invoices') return JSON.stringify(window.appInvoices);
+    return originalGetItem(key);
+  };
+  
+  localStorage.setItem = function(key, value) {
+    if (key === 'meera_invoices') {
+      window.appInvoices = JSON.parse(value);
+      originalSetItem('meera_invoices', value); // Save locally as backup
+      
+      // Async sync to cloud
+      if (window.useCloud && window.firebaseDb) {
+        const batch = window.firebaseDb.batch();
+        window.appInvoices.forEach(inv => {
+          const docRef = window.firebaseDb.collection('invoices').doc(inv.id.toString());
+          batch.set(docRef, inv);
+        });
+        batch.commit().catch(e => console.error("Cloud Sync Error", e));
+      }
+      return;
+    }
+    originalSetItem(key, value);
+  };
+  
+  localStorage.removeItem = function(key) {
+    if (key === 'meera_invoices') {
+      window.appInvoices = [];
+      originalRemoveItem('meera_invoices');
+      if (window.useCloud && window.firebaseDb) {
+        window.firebaseDb.collection('invoices').get().then(snap => {
+          const batch = window.firebaseDb.batch();
+          snap.docs.forEach(doc => batch.delete(doc.ref));
+          batch.commit();
+        });
+      }
+      return;
+    }
+    originalRemoveItem(key);
+  };
+  
+  // The end of script.js - Initialization is now handled via Cloud Sync at the top
+  const historyView = document.getElementById('history-view');
+  if (historyView && historyView.classList.contains('active')) {
+    updateHistoryView();
+  }
+}
+
+// Start Initialization
+initializeCloudSync();
+
+// Auto Migration handles initialization, no UI needed for Cloud Sync anymore
+
 // --- Authentication Logic ---
 const storedPassword = localStorage.getItem('admin_password');
 if (!storedPassword) {
@@ -791,5 +893,4 @@ changePassBtn.addEventListener('click', () => {
     passMsg.textContent = '';
   }, 3000);
 });
-
-updateDashboard();
+// The end of script.js
