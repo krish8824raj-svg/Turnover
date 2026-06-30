@@ -36,6 +36,17 @@ document.getElementById('login-password').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') attemptLogin();
 });
 
+// Logout Logic
+document.getElementById('logout-btn').addEventListener('click', () => {
+  mainApp.style.display = 'none';
+  loginOverlay.style.display = 'flex';
+  setTimeout(() => {
+    loginOverlay.classList.add('active');
+  }, 10);
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+});
+
 // --- Dark Mode Logic ---
 const darkModeToggle = document.getElementById('dark-mode-toggle');
 const isDarkMode = localStorage.getItem('meera_dark_mode') === 'true';
@@ -72,6 +83,8 @@ navBtns.forEach(btn => {
     
     if (targetId === 'dashboard-view') {
       updateDashboard();
+    } else if (targetId === 'history-view') {
+      updateHistoryView();
     }
   });
 });
@@ -320,7 +333,8 @@ function triggerConfetti() {
 // --- Data Management (Local Storage) ---
 function saveInvoice() {
   const invoiceNo = document.getElementById('invoice-no').value;
-  const clientDetails = document.getElementById('client-name').value;
+  const clientName = document.getElementById('client-name').value;
+  const clientAddress = document.getElementById('client-address').value;
   const clientGstin = document.getElementById('client-gstin').value;
   const dateStr = document.getElementById('invoice-date').value;
   const stateCode = document.getElementById('state-code').value;
@@ -348,8 +362,9 @@ function saveInvoice() {
   const newInvoice = {
     id: Date.now().toString(),
     invoiceNo,
-    client: clientDetails.split('\n')[0],
-    clientFull: clientDetails,
+    client: clientName,
+    clientAddress: clientAddress,
+    clientFull: clientName + (clientAddress ? '\n' + clientAddress : ''),
     clientGstin,
     date: dateStr,
     stateCode,
@@ -435,9 +450,10 @@ function updateDashboard() {
   const selectedYear = filterYearInput.value;
   
   invoices.forEach(inv => {
-    if (inv.date === todayStr) todayTotal += inv.total;
-    if (inv.date.startsWith(selectedMonth)) monthTotal += inv.total;
-    if (inv.date.startsWith(selectedYear)) yearTotal += inv.total;
+    const invDate = inv.date || '';
+    if (invDate === todayStr) todayTotal += inv.total;
+    if (invDate.startsWith(selectedMonth)) monthTotal += inv.total;
+    if (invDate.startsWith(selectedYear)) yearTotal += inv.total;
   });
   
   const inrFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
@@ -449,7 +465,7 @@ function updateDashboard() {
   const tableBody = document.getElementById('recent-invoices-body');
   tableBody.innerHTML = '';
   
-  const recent = [...invoices].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+  const recent = [...invoices].sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 10);
   
   if (recent.length === 0) {
     tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px; color: #64748b;">No invoices generated yet.</td></tr>`;
@@ -475,9 +491,11 @@ document.getElementById('clear-data-btn').addEventListener('click', () => {
 });
 
 // --- Bank Details Persistence ---
-const bankFields = ['bank-name', 'bank-account', 'bank-ifsc', 'bank-branch', 'company-phone', 'company-email', 'company-address'];
+const bankFields = ['bank-name', 'bank-account', 'bank-ifsc', 'bank-branch', 'bank-bank', 'bank-type', 'company-phone', 'company-email', 'company-address'];
 bankFields.forEach(field => {
   const el = document.getElementById(field);
+  if (!el) return;
+  
   const savedVal = localStorage.getItem(`meera_${field}`);
   if (savedVal) el.value = savedVal;
   
@@ -488,35 +506,56 @@ bankFields.forEach(field => {
 
 // --- History & PDF Statement ---
 function updateHistoryView(searchQuery = '') {
-  const invoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-  const tableBody = document.getElementById('all-invoices-body');
-  tableBody.innerHTML = '';
-  
-  const inrFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
-  
-  const filtered = invoices.filter(inv => 
-    inv.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    inv.client.toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a,b) => new Date(b.date) - new Date(a.date));
-  
-  if (filtered.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 30px; color: #64748b;">No invoices found.</td></tr>`;
-  } else {
-    filtered.forEach(inv => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><strong>${inv.invoiceNo}</strong></td>
-        <td>${new Date(inv.date).toLocaleDateString('en-IN')}</td>
-        <td>${inv.client}</td>
-        <td class="text-right"><strong>${inrFormatter.format(inv.total)}</strong></td>
-        <td style="text-align: center; white-space: nowrap;">
-          <button class="primary-btn view-inv-btn" data-id="${inv.id}" title="View Invoice" style="padding: 6px; margin-right: 4px;"><i data-lucide="eye" style="width:16px;height:16px;"></i></button>
-          <button class="danger-btn delete-inv-btn" data-id="${inv.id}" title="Delete Invoice"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
-        </td>
-      `;
-      tableBody.appendChild(tr);
+  try {
+    let rawData = localStorage.getItem('meera_invoices');
+    let invoices = [];
+    if (rawData) {
+      const parsed = JSON.parse(rawData);
+      if (Array.isArray(parsed)) invoices = parsed;
+    }
+    
+    const tableBody = document.getElementById('all-invoices-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    
+    const inrFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+    const query = String(searchQuery || '').toLowerCase();
+    
+    const filtered = invoices.filter(inv => {
+      if (!inv) return false;
+      const invNo = String(inv.invoiceNo || '').toLowerCase();
+      const invClient = String(inv.client || '').toLowerCase();
+      return invNo.includes(query) || invClient.includes(query);
+    }).sort((a,b) => {
+      const d1 = a && a.date ? new Date(a.date).getTime() : 0;
+      const d2 = b && b.date ? new Date(b.date).getTime() : 0;
+      return (isNaN(d2) ? 0 : d2) - (isNaN(d1) ? 0 : d1);
     });
-    lucide.createIcons({ root: tableBody });
+    
+    if (filtered.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 30px; color: #64748b;">No invoices found.</td></tr>`;
+    } else {
+      filtered.forEach(inv => {
+        const tr = document.createElement('tr');
+        const dateStr = inv.date && !isNaN(new Date(inv.date).getTime()) ? new Date(inv.date).toLocaleDateString('en-IN') : '-';
+        tr.innerHTML = `
+          <td><strong>${inv.invoiceNo || '-'}</strong></td>
+          <td>${dateStr}</td>
+          <td>${inv.client || '-'}</td>
+          <td class="text-right"><strong>${inrFormatter.format(inv.total || 0)}</strong></td>
+          <td style="text-align: center; white-space: nowrap;">
+            <button class="primary-btn view-inv-btn" data-id="${inv.id}" title="View Invoice" style="padding: 6px; margin-right: 4px;"><i data-lucide="eye" style="width:16px;height:16px;"></i></button>
+            <button class="danger-btn delete-inv-btn" data-id="${inv.id}" title="Delete Invoice"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+      if (typeof lucide !== 'undefined') lucide.createIcons({ root: tableBody });
+    }
+  } catch (err) {
+    console.error("Error in updateHistoryView:", err);
+    const tableBody = document.getElementById('all-invoices-body');
+    if (tableBody) tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--danger);">Error loading invoices. Please reset data if this persists.</td></tr>`;
   }
 }
 
@@ -547,11 +586,26 @@ document.getElementById('all-invoices-body').addEventListener('click', (e) => {
 
 function loadInvoice(id) {
   const invoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-  const inv = invoices.find(i => i.id === id);
-  if(!inv) return;
+  const inv = invoices.find(i => String(i.id) === String(id));
+  if(!inv) {
+    alert("Could not load this invoice. The data might be missing.");
+    return;
+  }
   
-  document.getElementById('invoice-no').value = inv.invoiceNo;
-  document.getElementById('client-details').value = inv.clientFull || inv.client;
+  document.getElementById('invoice-no').value = inv.invoiceNo || '';
+  document.getElementById('client-name').value = inv.client || '';
+  
+  let addr = inv.clientAddress || '';
+  if (!addr && inv.clientFull) {
+     const parts = inv.clientFull.split('\n');
+     if (parts.length > 1) {
+       parts.shift();
+       addr = parts.join('\n');
+     } else if (parts[0] !== inv.client) {
+       addr = parts[0];
+     }
+  }
+  document.getElementById('client-address').value = addr;
   document.getElementById('client-gstin').value = inv.clientGstin || "";
   document.getElementById('invoice-date').value = inv.date;
   if(inv.stateCode) document.getElementById('state-code').value = inv.stateCode;
@@ -585,64 +639,108 @@ function loadInvoice(id) {
 }
 
 document.getElementById('download-pdf-btn').addEventListener('click', () => {
-  const fromDate = document.getElementById('statement-from').value;
-  const toDate = document.getElementById('statement-to').value;
-  
-  if(!fromDate || !toDate) {
-    alert("Please select both From Date and To Date.");
-    return;
+  try {
+    const fromDate = document.getElementById('statement-from').value;
+    const toDate = document.getElementById('statement-to').value;
+    
+    if(!fromDate || !toDate) {
+      alert("Please select both From Date and To Date.");
+      return;
+    }
+    
+    const fromTime = new Date(fromDate).getTime();
+    // Set toTime to end of day to include invoices on the same day
+    const toTime = new Date(toDate).getTime() + 86399000;
+    
+    let rawData = localStorage.getItem('meera_invoices');
+    let invoices = [];
+    if (rawData) {
+      const parsed = JSON.parse(rawData);
+      if (Array.isArray(parsed)) invoices = parsed;
+    }
+    
+    const filtered = invoices.filter(inv => {
+      if (!inv || !inv.date) return false;
+      let invTime = new Date(inv.date).getTime();
+      
+      // Fallback for DD/MM/YYYY or D/M/YYYY
+      if (isNaN(invTime) && inv.date.includes('/')) {
+        const parts = inv.date.split('/');
+        if (parts.length === 3) {
+          invTime = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`).getTime();
+        }
+      }
+      
+      if (isNaN(invTime)) return false;
+      return invTime >= fromTime && invTime <= toTime;
+    }).sort((a,b) => {
+      let d1 = new Date(a.date).getTime();
+      if (isNaN(d1) && a.date && a.date.includes('/')) {
+         const p = a.date.split('/'); d1 = new Date(`${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`).getTime();
+      }
+      let d2 = new Date(b.date).getTime();
+      if (isNaN(d2) && b.date && b.date.includes('/')) {
+         const p = b.date.split('/'); d2 = new Date(`${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`).getTime();
+      }
+      return (isNaN(d1) ? 0 : d1) - (isNaN(d2) ? 0 : d2);
+    });
+    
+    if(filtered.length === 0) {
+      alert("No turnover found in this date range.");
+      return;
+    }
+    
+    if (!window.jspdf) {
+      alert("PDF generator is still loading. Please try again in a few seconds.");
+      return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    if (typeof doc.autoTable !== 'function') {
+      alert("PDF Table plugin failed to load. Please refresh the page and try again.");
+      return;
+    }
+    
+    doc.setFontSize(22);
+    doc.setTextColor(245, 158, 11);
+    doc.text("MEERA ENTERPRISES", 14, 20);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(51, 65, 85);
+    doc.text("Turnover Statement", 14, 28);
+    doc.setFontSize(10);
+    doc.text(`Period: ${new Date(fromDate).toLocaleDateString('en-IN')} to ${new Date(toDate).toLocaleDateString('en-IN')}`, 14, 34);
+    
+    const tableData = filtered.map((inv, index) => [
+      index + 1,
+      inv.date ? new Date(inv.date).toLocaleDateString('en-IN') : '-',
+      inv.invoiceNo || '-',
+      inv.client || '-',
+      "Rs. " + (inv.total || 0).toFixed(2)
+    ]);
+    
+    const totalAmount = filtered.reduce((sum, inv) => sum + (inv.total || 0), 0);
+    
+    doc.autoTable({
+      startY: 40,
+      head: [['S.No', 'Date', 'Invoice No', 'Client', 'Total Amount']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] },
+      foot: [['', '', '', 'Total Turnover:', "Rs. " + totalAmount.toFixed(2)]],
+      footStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' }
+    });
+    
+    doc.save(`Meera_Statement_${fromDate}_to_${toDate}.pdf`);
+  } catch (err) {
+    console.error("Error generating PDF:", err);
+    alert("Failed to generate PDF due to a data error. Please try again.");
   }
-  
-  const invoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-  const filtered = invoices.filter(inv => {
-    return inv.date >= fromDate && inv.date <= toDate;
-  }).sort((a,b) => new Date(a.date) - new Date(b.date));
-  
-  if(filtered.length === 0) {
-    alert("No turnover found in this date range.");
-    return;
-  }
-  
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  
-  doc.setFontSize(22);
-  doc.setTextColor(245, 158, 11);
-  doc.text("MEERA ENTERPRISES", 14, 20);
-  
-  doc.setFontSize(12);
-  doc.setTextColor(51, 65, 85);
-  doc.text("Turnover Statement", 14, 28);
-  doc.setFontSize(10);
-  doc.text(`Period: ${new Date(fromDate).toLocaleDateString('en-IN')} to ${new Date(toDate).toLocaleDateString('en-IN')}`, 14, 34);
-  
-  const tableData = filtered.map((inv, index) => [
-    index + 1,
-    new Date(inv.date).toLocaleDateString('en-IN'),
-    inv.invoiceNo,
-    inv.client,
-    "Rs. " + inv.total.toFixed(2)
-  ]);
-  
-  const totalAmount = filtered.reduce((sum, inv) => sum + inv.total, 0);
-  
-  doc.autoTable({
-    startY: 40,
-    head: [['S.No', 'Date', 'Invoice No', 'Client', 'Total Amount']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: { fillColor: [15, 23, 42] },
-    foot: [['', '', '', 'Total Turnover:', "Rs. " + totalAmount.toFixed(2)]],
-    footStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' }
-  });
-  
-  doc.save(`Meera_Statement_${fromDate}_to_${toDate}.pdf`);
 });
 
-// Attach History Update to Nav
-document.querySelector('.nav-btn[data-target="history-view"]').addEventListener('click', () => {
-  updateHistoryView();
-});
+// History update is now handled centrally in the main navigation logic.
 
 // --- Settings Logic ---
 const changePassBtn = document.getElementById('change-password-btn');
