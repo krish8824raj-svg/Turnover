@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meera Enterprises | Billing & Turnover Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- jsPDF & AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Login Overlay -->
+  <div id="login-overlay" class="login-overlay active">
+    <div class="login-card card-glass">
+      <div class="login-header">
+        <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="20" fill="url(#paint0_linear)" />
+          <circle cx="50" cy="50" r="30" stroke="#FFFFFF" stroke-width="6" stroke-dasharray="10 5" fill="none" />
+          <text x="50" y="62" font-family="'Outfit', sans-serif" font-weight="bold" font-size="34" fill="#FFFFFF" text-anchor="middle">ME</text>
+        </svg>
+        <h2>Welcome Back</h2>
+        <p>Please sign in to continue</p>
+      </div>
+      <div class="login-form">
+        <div class="input-group">
+          <label>Username</label>
+          <input type="text" id="login-username" placeholder="Enter username" />
+        </div>
+        <div class="input-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="Enter password" />
+        </div>
+        <p id="login-error" class="error-text" style="display: none; color: var(--danger); font-size: 0.85rem; margin-bottom: 12px;"></p>
+        <button id="login-btn" class="primary-btn" style="width: 100%;">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container" id="main-app" style="display: none;">
+    <!-- Sidebar -->
+    <aside class="sidebar no-print">
+      <div class="logo-container">
+        <!-- Premium SVG Logo -->
+        <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="20" fill="url(#paint0_linear)" />
+          <circle cx="50" cy="50" r="30" stroke="#FFFFFF" stroke-width="6" stroke-dasharray="10 5" fill="none" />
+          <text x="50" y="62" font-family="'Outfit', sans-serif" font-weight="bold" font-size="34" fill="#FFFFFF"
+            text-anchor="middle">ME</text>
+          <defs>
+            <linearGradient id="paint0_linear" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#f59e0b" />
+              <stop offset="1" stop-color="#ea580c" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="brand-text">
+          <h2>Meera Enterprises</h2>
+          <p>Billing & Analytics</p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <button class="nav-btn active" data-target="dashboard-view">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-btn" data-target="invoice-view">
+          <i data-lucide="receipt"></i>
+          <span>Create Invoice</span>
+        </button>
+        <button class="nav-btn" data-target="history-view">
+          <i data-lucide="history"></i>
+          <span>Invoice History</span>
+        </button>
+        <button class="nav-btn" data-target="settings-view">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="avatar">
+            <i data-lucide="user"></i>
+          </div>
+          <div class="user-text">
+            <h4>Admin Panel</h4>
+            <p>Authorized Access</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- DASHBOARD VIEW -->
+      <section id="dashboard-view" class="view-section active no-print">
+        <header class="top-header">
+          <div class="header-titles">
+            <h1>Turnover Dashboard</h1>
+            <p>Track your real-time revenue and business growth.</p>
+          </div>
+          <div class="date-badge" id="current-date-badge">
+            <i data-lucide="calendar"></i>
+            <span id="date-text">Loading Date...</span>
+          </div>
+        </header>
+
+        <div class="stats-grid">
+          <!-- Today Card -->
+          <div class="stat-card">
+            <div class="stat-content">
+              <p class="stat-title">Today's Turnover</p>
+              <h3 id="stat-today" class="stat-value text-amber">₹0.00</h3>
+            </div>
+            <div class="stat-icon-wrapper bg-amber-light">
+              <i data-lucide="sun" class="icon-amber"></i>
+            </div>
+          </div>
+
+          <!-- Monthly Card -->
+          <div class="stat-card">
+            <div class="stat-content">
+              <p class="stat-title" style="display: flex; align-items: center; gap: 8px;">
+                Monthly Turnover
+                <input type="month" id="filter-month" class="minimal-filter" />
+              </p>
+              <h3 id="stat-month" class="stat-value text-blue">₹0.00</h3>
+            </div>
+            <div class="stat-icon-wrapper bg-blue-light">
+              <i data-lucide="bar-chart-2" class="icon-blue"></i>
+            </div>
+          </div>
+
+          <!-- Yearly Card -->
+          <div class="stat-card">
+            <div class="stat-content">
+              <p class="stat-title" style="display: flex; align-items: center; gap: 8px;">
+                Yearly Turnover
+                <select id="filter-year" class="minimal-filter"></select>
+              </p>
+              <h3 id="stat-year" class="stat-value text-emerald">₹0.00</h3>
+            </div>
+            <div class="stat-icon-wrapper bg-emerald-light">
+              <i data-lucide="trending-up" class="icon-emerald"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-tables-container">
+          <div class="recent-invoices card-glass">
+            <div class="card-header">
+              <h2>Recent Invoices</h2>
+              <button id="clear-data-btn" class="danger-btn-outline">
+                <i data-lucide="trash-2"></i> Reset Data
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th style="text-align: right;">Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-invoices-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HISTORY VIEW -->
+      <section id="history-view" class="view-section no-print">
+        <header class="top-header">
+          <div class="header-titles">
+            <h1>Invoice History & Statements</h1>
+            <p>View all past bills or download turnover statements.</p>
+          </div>
+        </header>
+
+        <div class="statement-export-card card-glass" style="padding: 24px; margin-bottom: 32px;">
+          <h3 style="margin-bottom: 16px;">Download PDF Statement</h3>
+          <div style="display: flex; gap: 16px; align-items: flex-end;">
+            <div style="flex: 1;">
+              <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">From
+                Date</label>
+              <input type="date" id="statement-from" />
+            </div>
+            <div style="flex: 1;">
+              <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">To
+                Date</label>
+              <input type="date" id="statement-to" />
+            </div>
+            <button id="download-pdf-btn" class="primary-btn" style="height: 44px; padding: 0 24px;">
+              <i data-lucide="file-down"></i> Generate PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="recent-invoices card-glass">
+          <div class="card-header"
+            style="margin-bottom: 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <h2>All Invoices</h2>
+            <div style="width: 300px; max-width: 100%;">
+              <input type="text" id="history-search" placeholder="Search by Invoice No or Client..."
+                style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: white;" />
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Invoice No</th>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th style="text-align: right;">Total Amount</th>
+                  <th style="text-align: center;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="all-invoices-body">
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- INVOICE VIEW -->
+      <section id="invoice-view" class="view-section">
+
+        <!-- Action Buttons (Hidden on Print) -->
+        <div class="invoice-actions card-glass no-print">
+          <div>
+            <h2>New Tax Invoice</h2>
+            <p class="sub-text">Fill in the details below to generate a bill.</p>
+          </div>
+          <div class="action-btn-group">
+            <button id="save-invoice-btn" class="primary-btn pulse-anim">
+              <i data-lucide="save"></i> Save & Generate
+            </button>
+            <button onclick="window.print()" class="secondary-btn">
+              <i data-lucide="printer"></i> Print Bill
+            </button>
+          </div>
+        </div>
+
+        <div class="invoice-scroll-area">
+          <!-- The Printable Invoice Paper -->
+          <!-- The Printable Invoice Paper (Tally Style) -->
+          <div class="invoice-paper tally-invoice" id="printable-invoice">
+            
+            <div class="tally-title">GST INVOICE</div>
+            
+            <div class="tally-border-box">
+              
+              <!-- Top Section Split -->
+              <div class="tally-header-split border-bottom">
+                <!-- Left: Company Info -->
+                <div class="tally-company-box border-right">
+                  <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                    <div class="company-logo-tally">
+                      <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="100" height="100" fill="#000" />
+                        <rect x="20" y="20" width="15" height="60" fill="#3b82f6" />
+                        <rect x="42" y="20" width="15" height="60" fill="#3b82f6" />
+                        <rect x="65" y="20" width="15" height="60" fill="#3b82f6" />
+                        <rect x="20" y="20" width="60" height="15" fill="#3b82f6" />
+                      </svg>
+                    </div>
+                    <div class="company-details-tally">
+                      <h3>Meera Enterprises</h3>
+                      <textarea class="tally-input-borderless" rows="2" id="company-address">P. No. 15, Karni Nagar B, Jhotwara, Jaipur - 12</textarea>
+                      <p>GSTIN: <input type="text" class="tally-input-borderless" id="company-gstin" value="08BUMPJ5262J1Z7"></p>
+                      <p>Contact: <input type="text" class="tally-input-borderless" id="company-phone" value="9672002812"></p>
+                    </div>
+                  </div>
+                  
+                  <div class="tally-consignee border-top">
+                    <label>Consignee (Ship to)</label>
+                    <h3><input type="text" class="tally-input-borderless bold-tally" id="client-name" value="Machine wood"></h3>
+                    <textarea class="tally-input-borderless" rows="2" id="client-address">502 Moti Nagar, Ajmer Road,&#10;Jaipur</textarea>
+                    <p>GSTIN/UIN: <input type="text" class="tally-input-borderless" id="client-gstin" value="08AGHPN3116B1ZU"></p>
+                    <p>State Name: 
+                      <input type="text" id="state-code" class="tally-input-borderless" list="india-states" value="08 (Rajasthan)" placeholder="Type or select state...">
+                      <datalist id="india-states">
+                        <option value="01 (Jammu & Kashmir)"></option>
+                        <option value="02 (Himachal Pradesh)"></option>
+                        <option value="03 (Punjab)"></option>
+                        <option value="04 (Chandigarh)"></option>
+                        <option value="05 (Uttarakhand)"></option>
+                        <option value="06 (Haryana)"></option>
+                        <option value="07 (Delhi)"></option>
+                        <option value="08 (Rajasthan)"></option>
+                        <option value="09 (Uttar Pradesh)"></option>
+                        <option value="10 (Bihar)"></option>
+                        <option value="11 (Sikkim)"></option>
+                        <option value="12 (Arunachal Pradesh)"></option>
+                        <option value="13 (Nagaland)"></option>
+                        <option value="14 (Manipur)"></option>
+                        <option value="15 (Mizoram)"></option>
+                        <option value="16 (Tripura)"></option>
+                        <option value="17 (Meghalaya)"></option>
+                        <option value="18 (Assam)"></option>
+                        <option value="19 (West Bengal)"></option>
+                        <option value="20 (Jharkhand)"></option>
+                        <option value="21 (Odisha)"></option>
+                        <option value="22 (Chhattisgarh)"></option>
+                        <option value="23 (Madhya Pradesh)"></option>
+                        <option value="24 (Gujarat)"></option>
+                        <option value="25 (Daman & Diu)"></option>
+                        <option value="26 (Dadra & Nagar Haveli)"></option>
+                        <option value="27 (Maharashtra)"></option>
+                        <option value="29 (Karnataka)"></option>
+                        <option value="30 (Goa)"></option>
+                        <option value="31 (Lakshadweep)"></option>
+                        <option value="32 (Kerala)"></option>
+                        <option value="33 (Tamil Nadu)"></option>
+                        <option value="34 (Puducherry)"></option>
+                        <option value="35 (Andaman & Nicobar Islands)"></option>
+                        <option value="36 (Telangana)"></option>
+                        <option value="37 (Andhra Pradesh)"></option>
+                        <option value="38 (Ladakh)"></option>
+                      </datalist>
+                    </p>
+                  </div>
+                </div>
+                
+                <!-- Right: Invoice Meta Grid -->
+                <div class="tally-meta-box">
+                  <div class="tally-meta-row border-bottom">
+                    <div class="tally-meta-cell border-right">
+                      <label>Invoice No.</label>
+                      <input type="text" class="tally-input-borderless bold-tally" id="invoice-no" value="HS/15">
+                    </div>
+                    <div class="tally-meta-cell">
+                      <label>Dated</label>
+                      <input type="date" class="tally-input-borderless" id="invoice-date">
+                    </div>
+                  </div>
+                  <div class="tally-meta-row border-bottom">
+                    <div class="tally-meta-cell border-right">
+                      <label>Reference No.</label>
+                      <input type="text" class="tally-input-borderless" id="reference-no">
+                    </div>
+                    <div class="tally-meta-cell">
+                      <label>Mode/Terms of payment</label>
+                      <input type="text" class="tally-input-borderless" value="Manual" id="payment-mode">
+                    </div>
+                  </div>
+                  <div class="tally-meta-row border-bottom">
+                    <div class="tally-meta-cell border-right">
+                      <label>Buyer's Order No.</label>
+                      <input type="text" class="tally-input-borderless" id="buyer-order-no">
+                    </div>
+                    <div class="tally-meta-cell">
+                      <label>Dated</label>
+                      <input type="date" class="tally-input-borderless" id="buyer-order-date">
+                    </div>
+                  </div>
+                  <div class="tally-meta-row border-bottom">
+                    <div class="tally-meta-cell border-right">
+                      <label>Dispatched through</label>
+                      <input type="text" class="tally-input-borderless" id="dispatch-through">
+                    </div>
+                    <div class="tally-meta-cell">
+                      <label>Destination</label>
+                      <input type="text" class="tally-input-borderless" id="destination" value="Mansarovar, JAIPUR">
+                    </div>
+                  </div>
+                  <div class="tally-meta-row">
+                    <div class="tally-meta-cell full-width" style="height: 100%;">
+                      <label>Terms of Delivery</label>
+                      <textarea class="tally-input-borderless" id="terms-delivery" style="height: 100%;"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Main Items Table -->
+              <div class="tally-items-wrapper border-bottom">
+                <table class="tally-items-table">
+                  <thead>
+                    <tr>
+                      <th width="3%" class="border-right border-bottom">S.<br>No</th>
+                      <th width="35%" class="border-right border-bottom text-center">Description of Goods</th>
+                      <th width="8%" class="border-right border-bottom">HSN/SAC</th>
+                      <th width="7%" class="border-right border-bottom">GST<br>Rate</th>
+                      <th width="8%" class="border-right border-bottom">Quantity</th>
+                      <th width="10%" class="border-right border-bottom">Rate</th>
+                      <th width="7%" class="border-right border-bottom">per</th>
+                      <th width="7%" class="border-right border-bottom">Disc.<br>%</th>
+                      <th width="15%" class="border-bottom text-right">Amount</th>
+                      <th width="3%" class="border-bottom no-print"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="items-tbody">
+                    <!-- JS fills this -->
+                  </tbody>
+                  
+                  <!-- Tax summary inside the same table layout -->
+                  <tbody class="tally-tax-summary">
+                    <tr id="row-igst">
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right text-right" style="padding-right: 20px; font-weight: bold;">IGST</td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell text-right bold-tally" id="tally-igst-amt">0.00</td>
+                      <td class="empty-cell no-print"></td>
+                    </tr>
+                    <tr id="row-cgst">
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right text-right" style="padding-right: 20px; font-weight: bold;">CGST</td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell text-right bold-tally" id="tally-cgst-amt">0.00</td>
+                      <td class="empty-cell no-print"></td>
+                    </tr>
+                    <tr id="row-sgst">
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right text-right" style="padding-right: 20px; font-weight: bold;">SGST</td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell border-right"></td>
+                      <td class="empty-cell text-right bold-tally" id="tally-sgst-amt">0.00</td>
+                      <td class="empty-cell no-print"></td>
+                    </tr>
+                  </tbody>
+
+                  <!-- Grand Total Row -->
+                  <tfoot>
+                    <tr>
+                      <th colspan="4" class="border-right border-top text-right">Total</th>
+                      <th id="tally-total-qty" class="border-right border-top">0</th>
+                      <th class="border-right border-top"></th>
+                      <th class="border-right border-top"></th>
+                      <th class="border-right border-top"></th>
+                      <th class="text-right border-top bold-tally" id="tally-grand-total">0.00</th>
+                      <th class="border-top no-print"></th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Amount in words -->
+              <div class="tally-amount-words border-bottom" style="display: flex; justify-content: space-between;">
+                <div>
+                  <label>Amount Chargeable (in words)</label>
+                  <div id="amount-words-display" class="bold-tally">INR Zero Only</div>
+                </div>
+                <div class="tally-eoe" style="font-style: italic; padding-right: 10px;">E. & O.E.</div>
+              </div>
+
+              <!-- Tax Breakdown Table -->
+              <div class="tally-tax-breakdown border-bottom">
+                <table class="tally-inner-table">
+                  <thead>
+                    <tr>
+                      <th rowspan="2" width="20%" class="border-right border-bottom text-center">HSN/SAC</th>
+                      <th rowspan="2" width="15%" class="border-right border-bottom text-center">Taxable<br>Value</th>
+                      <th colspan="2" width="25%" class="border-right border-bottom text-center">Central Tax</th>
+                      <th colspan="2" width="25%" class="border-right border-bottom text-center">State Tax</th>
+                      <th rowspan="2" width="15%" class="border-bottom text-center">Total<br>Tax Amount</th>
+                    </tr>
+                    <tr>
+                      <th class="border-right border-bottom text-center">Rate</th>
+                      <th class="border-right border-bottom text-center">Amount</th>
+                      <th class="border-right border-bottom text-center">Rate</th>
+                      <th class="border-right border-bottom text-center">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tax-breakdown-tbody">
+                    <!-- JS fills this based on items -->
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th class="border-right border-top text-right">Total</th>
+                      <th id="tally-breakdown-taxable" class="border-right border-top text-right">0.00</th>
+                      <th class="border-right border-top"></th>
+                      <th id="tally-breakdown-cgst" class="border-right border-top text-right">0.00</th>
+                      <th class="border-right border-top"></th>
+                      <th id="tally-breakdown-sgst" class="border-right border-top text-right">0.00</th>
+                      <th id="tally-breakdown-total-tax" class="border-top text-right">0.00</th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div class="tally-tax-words border-bottom">
+                <label>Tax Amount (in words):</label>
+                <div id="tax-words-display" class="bold-tally">INR Zero Only</div>
+              </div>
+
+              <!-- Footer Section -->
+              <div class="tally-footer-split">
+                <div class="tally-declaration border-right">
+                  <label>Declaration:</label>
+                  <p class="tally-terms-title">Terms of Sale</p>
+                  <ol>
+                    <li>Our risks and responsibilities ceases once the goods have left our premises. Any claim with transporter/carrier to be taken up with them directly.</li>
+                    <li>Interest at the rate of 18% p.a. will be charged on bills not paid as per the terms.</li>
+                    <li>Cheque Return charge Rs. 500</li>
+                    <li>Shipping & Handling: Freight charges are extra and will be added to the final invoice.</li>
+                    <li>E. & O.E.</li>
+                  </ol>
+                  <div class="tally-customer-seal">
+                    Customer's Seal & Signature
+                  </div>
+                </div>
+                <div class="tally-bank-auth">
+                  <div class="tally-bank-details border-bottom">
+                    <p class="tally-terms-title">Company's Bank Details</p>
+                    <table class="tally-bank-table" style="width: 100%;">
+                      <tr>
+                        <td style="white-space: nowrap; width: 35%;">A/c Holder's Name</td>
+                        <td style="width: 10px; padding-right: 8px;">:</td>
+                        <td><input type="text" class="tally-input-borderless bold-tally" value="Meera Enterprises" id="bank-name"></td>
+                      </tr>
+                      <tr>
+                        <td style="white-space: nowrap;">Type of Account</td>
+                        <td style="padding-right: 8px;">:</td>
+                        <td><input type="text" class="tally-input-borderless bold-tally" value="Current" id="bank-type"></td>
+                      </tr>
+                      <tr>
+                        <td style="white-space: nowrap;">Bank Name</td>
+                        <td style="padding-right: 8px;">:</td>
+                        <td><input type="text" class="tally-input-borderless bold-tally" value="AU Small Finance Bank" id="bank-bank"></td>
+                      </tr>
+                      <tr>
+                        <td style="white-space: nowrap;">A/C No.</td>
+                        <td style="padding-right: 8px;">:</td>
+                        <td><input type="text" class="tally-input-borderless bold-tally" value="2402244463948825" id="bank-account"></td>
+                      </tr>
+                      <tr>
+                        <td style="white-space: nowrap;">IFS Code</td>
+                        <td style="padding-right: 8px;">:</td>
+                        <td><input type="text" class="tally-input-borderless bold-tally" value="AUBL0002444" id="bank-ifsc"></td>
+                      </tr>
+                    </table>
+                  </div>
+                  <div class="tally-auth-sign">
+                    <div class="for-company text-right">for <strong>Meera Enterprises</strong></div>
+                    <div class="auth-text text-right" style="margin-top: 60px;">Authorised Signatory</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            
+            <!-- Add Row Button -->
+            <div class="no-print" style="padding: 15px 0;">
+              <button id="add-item-btn" class="secondary-btn" style="width: 100%;">
+                <i data-lucide="plus"></i> Add Item Row
+              </button>
+              <br><br>
+              <label>Global GST Rate: </label>
+              <select id="gst-rate" class="tally-input-borderless" style="border:1px solid var(--border-color); width:100px;">
+                <option value="18" selected>18%</option>
+                <option value="12">12%</option>
+                <option value="5">5%</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS VIEW -->
+      <section id="settings-view" class="view-section no-print">
+        <header class="top-header">
+          <div class="header-titles">
+            <h1>Settings</h1>
+            <p>Manage your account and preferences.</p>
+          </div>
+        </header>
+
+        <div class="settings-grid" style="display: grid; gap: 24px; grid-template-columns: 1fr 1fr;">
+          <!-- Security Settings -->
+          <div class="card-glass" style="padding: 24px;">
+            <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px;"><i data-lucide="shield"></i> Security</h3>
+            <div class="input-group" style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Current Password</label>
+              <input type="password" id="current-password" placeholder="Enter current password" />
+            </div>
+            <div class="input-group" style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">New Password</label>
+              <input type="password" id="new-password" placeholder="Enter new password" />
+            </div>
+            <div class="input-group" style="margin-bottom: 24px;">
+              <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Confirm New Password</label>
+              <input type="password" id="confirm-password" placeholder="Confirm new password" />
+            </div>
+            <p id="password-msg" style="font-size: 0.85rem; margin-bottom: 12px;"></p>
+            <button id="change-password-btn" class="primary-btn">Update Password</button>
+          </div>
+
+          <!-- Appearance Settings -->
+          <div class="card-glass" style="padding: 24px;">
+            <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px;"><i data-lucide="moon"></i> Appearance</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-color);">
+              <div>
+                <h4 style="font-size: 1rem; margin-bottom: 4px;">Dark Mode</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Switch to a darker theme.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="dark-mode-toggle">
+                <span class="slider round"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
