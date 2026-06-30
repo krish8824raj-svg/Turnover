@@ -3,151 +3,212 @@
 // Initialize Lucide Icons
 lucide.createIcons();
 
-// --- Cloud Sync Abstraction ---
+// --- Cloud Sync & Auth Abstraction ---
 window.appInvoices = [];
 window.firebaseDb = null;
-window.useCloud = false;
+window.currentUser = null;
+window.unsubscribeSnapshot = null;
+let isSignupMode = false;
 
-const KVDB_BUCKET = "Gmbw4XTRh1gLguwuvbgsqC";
-const KVDB_URL = `https://kvdb.io/${KVDB_BUCKET}/invoices`;
-
-async function initializeCloudSync() {
-  try {
-    const res = await fetch(KVDB_URL);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        window.appInvoices = data;
-        window.useCloud = true;
-      } else {
-        // Cloud is empty, check local and migrate
-        const local = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-        if (local.length > 0) {
-          await fetch(KVDB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local) });
-          window.appInvoices = local;
-          window.useCloud = true;
-        } else {
-          window.appInvoices = [];
-          window.useCloud = true;
-        }
-      }
-    } else if (res.status === 404) {
-      // Key not found, migrate local
-      const local = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-      if (local.length > 0) {
-        await fetch(KVDB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local) });
-        window.appInvoices = local;
-        window.useCloud = true;
-      } else {
-        window.appInvoices = [];
-        window.useCloud = true;
-      }
-    } else {
-      throw new Error("KVDB Error");
-    }
-  } catch(err) {
-    console.error("Cloud sync failed, using local", err);
-    window.appInvoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-  }
-  
-  // Override localStorage methods for seamless integration
-  const originalGetItem = localStorage.getItem.bind(localStorage);
-  const originalSetItem = localStorage.setItem.bind(localStorage);
-  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
-  
-  localStorage.getItem = function(key) {
-    if (key === 'meera_invoices') return JSON.stringify(window.appInvoices);
-    return originalGetItem(key);
-  };
-  
-  localStorage.setItem = function(key, value) {
-    if (key === 'meera_invoices') {
-      window.appInvoices = JSON.parse(value);
-      originalSetItem('meera_invoices', value); // Save locally as backup
-      
-      // Async sync to cloud
-      if (window.useCloud) {
-        fetch(KVDB_URL, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(window.appInvoices) 
-        }).catch(e => console.error("Cloud Sync Error", e));
-      }
-      return;
-    }
-    originalSetItem(key, value);
-  };
-  
-  localStorage.removeItem = function(key) {
-    if (key === 'meera_invoices') {
-      window.appInvoices = [];
-      originalRemoveItem('meera_invoices');
-      if (window.useCloud) {
-        fetch(KVDB_URL, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([]) 
-        }).catch(e => console.error("Cloud Sync Error", e));
-      }
-      return;
-    }
-    originalRemoveItem(key);
-  };
-  
-  updateDashboard();
-  const historyView = document.getElementById('history-view');
-  if (historyView && historyView.classList.contains('active')) {
-    updateHistoryView();
-  }
-}
-
-// Start Initialization
-initializeCloudSync();
-
-// Auto Migration handles initialization, no UI needed for Cloud Sync anymore
-
-// --- Authentication Logic ---
-const storedPassword = localStorage.getItem('admin_password');
-if (!storedPassword) {
-  localStorage.setItem('admin_password', 'krishak47');
-}
-
-const loginBtn = document.getElementById('login-btn');
 const loginOverlay = document.getElementById('login-overlay');
 const mainApp = document.getElementById('main-app');
+const loginBtn = document.getElementById('login-btn');
 const loginError = document.getElementById('login-error');
+const toggleAuthMode = document.getElementById('toggle-auth-mode');
+const loginTitle = document.querySelector('.login-header h2');
+const loginSub = document.querySelector('.login-header p');
 
-function attemptLogin() {
-  const user = document.getElementById('login-username').value;
-  const pass = document.getElementById('login-password').value;
-  const currentPass = localStorage.getItem('admin_password');
-  
-  if (user === 'admin' && pass === currentPass) {
-    loginOverlay.classList.remove('active');
-    setTimeout(() => {
-      loginOverlay.style.display = 'none';
-      mainApp.style.display = 'flex';
-    }, 300);
-  } else {
-    loginError.textContent = 'Invalid username or password.';
-    loginError.style.display = 'block';
-  }
+if (toggleAuthMode) {
+  toggleAuthMode.addEventListener('click', (e) => {
+    e.preventDefault();
+    isSignupMode = !isSignupMode;
+    if (isSignupMode) {
+      loginTitle.textContent = "Create Account";
+      loginSub.textContent = "Sign up to sync your invoices securely";
+      loginBtn.textContent = "Sign Up";
+      toggleAuthMode.textContent = "Sign In";
+      toggleAuthMode.previousSibling.textContent = "Already have an account? ";
+    } else {
+      loginTitle.textContent = "Welcome Back";
+      loginSub.textContent = "Please sign in to continue";
+      loginBtn.textContent = "Sign In";
+      toggleAuthMode.textContent = "Sign Up";
+      toggleAuthMode.previousSibling.textContent = "Don't have an account? ";
+    }
+  });
 }
 
-loginBtn.addEventListener('click', attemptLogin);
+function initializeFirebaseApp() {
+  const config = {
+    apiKey: "AIzaSyD7k4yFm77Kbsw5SJbZVNS4Hh5LIL71J6k",
+    authDomain: "turnover-3fabc.firebaseapp.com",
+    projectId: "turnover-3fabc",
+    storageBucket: "turnover-3fabc.firebasestorage.app",
+    messagingSenderId: "188573328621",
+    appId: "1:188573328621:web:2e42d92daf5447c3bf58e4",
+    measurementId: "G-GCKBW1ZMJY"
+  };
+  
+  if (!firebase.apps.length) firebase.initializeApp(config);
+  window.firebaseDb = firebase.firestore();
+  
+  // Enable offline persistence
+  window.firebaseDb.enablePersistence().catch(err => console.warn("Persistence error:", err));
+  
+  firebase.auth().onAuthStateChanged(async (user) => {
+    if (user) {
+      window.currentUser = user;
+      
+      // Fetch settings and attempt migration of legacy local data if cloud is empty
+      try {
+        const userDoc = await window.firebaseDb.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          const data = userDoc.data();
+          Object.keys(data).forEach(k => {
+            if (k.startsWith('meera_')) {
+              originalSetItem(k, data[k]);
+              const el = document.getElementById(k.replace('meera_', ''));
+              if (el) el.value = data[k];
+            }
+          });
+        }
+        
+        const snapshot = await window.firebaseDb.collection('users').doc(user.uid).collection('invoices').get();
+        if (snapshot.empty) {
+          const localInvoices = JSON.parse(originalGetItem('meera_invoices')) || [];
+          if (localInvoices.length > 0) {
+            const batch = window.firebaseDb.batch();
+            localInvoices.forEach(inv => {
+              const ref = window.firebaseDb.collection('users').doc(user.uid).collection('invoices').doc(inv.id.toString());
+              batch.set(ref, inv);
+            });
+            await batch.commit();
+            console.log("Migrated local data to Firestore!");
+          }
+        }
+      } catch (err) {
+        console.error("Migration/Settings check failed:", err);
+      }
+      
+      // Setup Realtime Listener
+      if (window.unsubscribeSnapshot) window.unsubscribeSnapshot();
+      window.unsubscribeSnapshot = window.firebaseDb.collection('users').doc(user.uid).collection('invoices')
+        .onSnapshot((querySnapshot) => {
+          window.appInvoices = querySnapshot.docs.map(doc => doc.data());
+          updateDashboard();
+          const historyView = document.getElementById('history-view');
+          if (historyView && historyView.classList.contains('active')) {
+            updateHistoryView();
+          }
+        });
+        
+      loginOverlay.classList.remove('active');
+      setTimeout(() => {
+        loginOverlay.style.display = 'none';
+        mainApp.style.display = 'flex';
+      }, 300);
+      
+    } else {
+      window.currentUser = null;
+      window.appInvoices = [];
+      if (window.unsubscribeSnapshot) {
+        window.unsubscribeSnapshot();
+        window.unsubscribeSnapshot = null;
+      }
+      mainApp.style.display = 'none';
+      loginOverlay.style.display = 'flex';
+      setTimeout(() => {
+        loginOverlay.classList.add('active');
+      }, 10);
+    }
+  });
+}
+initializeFirebaseApp();
+
+// Intercept LocalStorage for seamless cloud write mapping
+const originalGetItem = localStorage.getItem.bind(localStorage);
+const originalSetItem = localStorage.setItem.bind(localStorage);
+const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+localStorage.getItem = function(key) {
+  if (key === 'meera_invoices') return JSON.stringify(window.appInvoices);
+  return originalGetItem(key);
+};
+
+localStorage.setItem = function(key, value) {
+  if (key === 'meera_invoices') {
+    window.appInvoices = JSON.parse(value);
+    originalSetItem('meera_invoices', value); // Save locally as fallback backup
+    
+    // Write to Firestore async
+    if (window.currentUser && window.firebaseDb) {
+      const batch = window.firebaseDb.batch();
+      window.appInvoices.forEach(inv => {
+        const docRef = window.firebaseDb.collection('users').doc(window.currentUser.uid).collection('invoices').doc(inv.id.toString());
+        batch.set(docRef, inv);
+      });
+      batch.commit().catch(e => console.error("Cloud Write Error", e));
+    }
+    return;
+  } else if (key.startsWith('meera_')) {
+    originalSetItem(key, value);
+    if (window.currentUser && window.firebaseDb) {
+      window.firebaseDb.collection('users').doc(window.currentUser.uid).set({
+        [key]: value
+      }, { merge: true });
+    }
+    return;
+  }
+  originalSetItem(key, value);
+};
+
+localStorage.removeItem = function(key) {
+  if (key === 'meera_invoices') {
+    window.appInvoices = [];
+    originalRemoveItem('meera_invoices');
+    if (window.currentUser && window.firebaseDb) {
+      window.firebaseDb.collection('users').doc(window.currentUser.uid).collection('invoices').get().then(snap => {
+        const batch = window.firebaseDb.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        batch.commit();
+      });
+    }
+    return;
+  }
+  originalRemoveItem(key);
+};
+
+// Auth Actions
+async function attemptAuth() {
+  const email = document.getElementById('login-username').value;
+  const pass = document.getElementById('login-password').value;
+  loginError.style.display = 'none';
+  loginBtn.textContent = 'Please wait...';
+  loginBtn.disabled = true;
+  
+  try {
+    if (isSignupMode) {
+      await firebase.auth().createUserWithEmailAndPassword(email, pass);
+    } else {
+      await firebase.auth().signInWithEmailAndPassword(email, pass);
+    }
+  } catch (err) {
+    loginError.textContent = err.message;
+    loginError.style.display = 'block';
+  }
+  
+  loginBtn.textContent = isSignupMode ? "Sign Up" : "Sign In";
+  loginBtn.disabled = false;
+}
+
+loginBtn.addEventListener('click', attemptAuth);
 document.getElementById('login-password').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') attemptLogin();
+  if (e.key === 'Enter') attemptAuth();
 });
 
 // Logout Logic
-document.getElementById('logout-btn').addEventListener('click', () => {
-  mainApp.style.display = 'none';
-  loginOverlay.style.display = 'flex';
-  setTimeout(() => {
-    loginOverlay.classList.add('active');
-  }, 10);
-  document.getElementById('login-username').value = '';
-  document.getElementById('login-password').value = '';
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await firebase.auth().signOut();
 });
 
 // --- Dark Mode Logic ---
