@@ -8,43 +8,45 @@ window.appInvoices = [];
 window.firebaseDb = null;
 window.useCloud = false;
 
+const KVDB_BUCKET = "Gmbw4XTRh1gLguwuvbgsqC";
+const KVDB_URL = `https://kvdb.io/${KVDB_BUCKET}/invoices`;
+
 async function initializeCloudSync() {
-  const config = {
-    apiKey: "AIzaSyD7k4yFm77Kbsw5SJbZVNS4Hh5LIL71J6k",
-    authDomain: "turnover-3fabc.firebaseapp.com",
-    projectId: "turnover-3fabc",
-    storageBucket: "turnover-3fabc.firebasestorage.app",
-    messagingSenderId: "188573328621",
-    appId: "1:188573328621:web:2e42d92daf5447c3bf58e4",
-    measurementId: "G-GCKBW1ZMJY"
-  };
-  
   try {
-    if (!firebase.apps.length) firebase.initializeApp(config);
-    window.firebaseDb = firebase.firestore();
-    window.useCloud = true;
-    
-    const snapshot = await window.firebaseDb.collection('invoices').get();
-    
-    if (snapshot.empty) {
-      // Auto-migration on first run: upload local data to cloud
-      const localInvoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
-      if (localInvoices.length > 0) {
-        const batch = window.firebaseDb.batch();
-        localInvoices.forEach(inv => {
-          batch.set(window.firebaseDb.collection('invoices').doc(inv.id.toString()), inv);
-        });
-        await batch.commit();
-        window.appInvoices = localInvoices;
-        console.log("Migrated local data to Firebase successfully.");
+    const res = await fetch(KVDB_URL);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        window.appInvoices = data;
+        window.useCloud = true;
+      } else {
+        // Cloud is empty, check local and migrate
+        const local = JSON.parse(localStorage.getItem('meera_invoices')) || [];
+        if (local.length > 0) {
+          await fetch(KVDB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local) });
+          window.appInvoices = local;
+          window.useCloud = true;
+        } else {
+          window.appInvoices = [];
+          window.useCloud = true;
+        }
+      }
+    } else if (res.status === 404) {
+      // Key not found, migrate local
+      const local = JSON.parse(localStorage.getItem('meera_invoices')) || [];
+      if (local.length > 0) {
+        await fetch(KVDB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local) });
+        window.appInvoices = local;
+        window.useCloud = true;
       } else {
         window.appInvoices = [];
+        window.useCloud = true;
       }
     } else {
-      window.appInvoices = snapshot.docs.map(doc => doc.data());
+      throw new Error("KVDB Error");
     }
-  } catch (err) {
-    console.error("Firebase init failed:", err);
+  } catch(err) {
+    console.error("Cloud sync failed, using local", err);
     window.appInvoices = JSON.parse(localStorage.getItem('meera_invoices')) || [];
   }
   
@@ -64,13 +66,12 @@ async function initializeCloudSync() {
       originalSetItem('meera_invoices', value); // Save locally as backup
       
       // Async sync to cloud
-      if (window.useCloud && window.firebaseDb) {
-        const batch = window.firebaseDb.batch();
-        window.appInvoices.forEach(inv => {
-          const docRef = window.firebaseDb.collection('invoices').doc(inv.id.toString());
-          batch.set(docRef, inv);
-        });
-        batch.commit().catch(e => console.error("Cloud Sync Error", e));
+      if (window.useCloud) {
+        fetch(KVDB_URL, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(window.appInvoices) 
+        }).catch(e => console.error("Cloud Sync Error", e));
       }
       return;
     }
@@ -81,19 +82,19 @@ async function initializeCloudSync() {
     if (key === 'meera_invoices') {
       window.appInvoices = [];
       originalRemoveItem('meera_invoices');
-      if (window.useCloud && window.firebaseDb) {
-        window.firebaseDb.collection('invoices').get().then(snap => {
-          const batch = window.firebaseDb.batch();
-          snap.docs.forEach(doc => batch.delete(doc.ref));
-          batch.commit();
-        });
+      if (window.useCloud) {
+        fetch(KVDB_URL, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([]) 
+        }).catch(e => console.error("Cloud Sync Error", e));
       }
       return;
     }
     originalRemoveItem(key);
   };
   
-  // The end of script.js - Initialization is now handled via Cloud Sync at the top
+  updateDashboard();
   const historyView = document.getElementById('history-view');
   if (historyView && historyView.classList.contains('active')) {
     updateHistoryView();
