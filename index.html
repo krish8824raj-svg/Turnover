@@ -17,10 +17,11 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- Canvas Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js" defer></script>
 
   <!-- jsPDF & AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>window.jsPDF = window.jspdf.jsPDF;</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
   <!-- Custom Styles -->
@@ -95,6 +96,10 @@
         <button class="nav-btn" data-target="settings-view">
           <i data-lucide="settings"></i>
           <span>Settings</span>
+        </button>
+        <button id="logout-btn" class="nav-btn" style="color: var(--danger); margin-top: auto; border-top: 1px solid var(--border-color); border-radius: 0;">
+          <i data-lucide="log-out"></i>
+          <span>Logout</span>
         </button>
       </nav>
 
@@ -172,9 +177,6 @@
           <div class="recent-invoices card-glass">
             <div class="card-header">
               <h2>Recent Invoices</h2>
-              <button id="clear-data-btn" class="danger-btn-outline">
-                <i data-lucide="trash-2"></i> Reset Data
-              </button>
             </div>
             <div class="table-responsive">
               <table class="data-table">
@@ -642,6 +644,18 @@
                 <input type="checkbox" id="dark-mode-toggle">
                 <span class="slider round"></span>
               </label>
+            </div>
+          <!-- Data Management Settings -->
+          <div class="card-glass" style="padding: 24px; grid-column: 1 / -1;">
+            <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px; color: var(--danger);"><i data-lucide="alert-triangle"></i> Danger Zone</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 1px solid var(--danger); border-radius: 8px; background: rgba(239, 68, 68, 0.05);">
+              <div>
+                <h4 style="font-size: 1rem; margin-bottom: 4px; color: var(--danger);">Reset All Data</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Permanently delete all invoices and turnover history. This cannot be undone.</p>
+              </div>
+              <button id="clear-data-btn" class="danger-btn">
+                <i data-lucide="trash-2"></i> Clear Data
+              </button>
             </div>
           </div>
         </div>
